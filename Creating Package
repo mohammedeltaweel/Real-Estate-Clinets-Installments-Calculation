@@ -1,0 +1,114 @@
+-- Creating Package that contains two procedures, the first procedure named 
+-- update_insall_no which calculates the payment installment number and then 
+-- update the contracts table. Second procedure named insert_install_data inserts 
+-- each payment record in the installments_paid table.
+
+--Package header
+CREATE OR REPLACE PACKAGE installment_pkg
+IS
+
+PROCEDURE update_insall_no (v_contract_id number);
+PROCEDURE insert_install_data(v_contract_id number);
+END;
+
+-- Package body
+CREATE OR REPLACE PACKAGE BODY installment_pkg
+IS
+--First procedure logic
+PROCEDURE update_insall_no (v_contract_id number)
+is
+v_start_date date;
+v_end_date date;
+v_payment_type varchar(10);
+v_payment_no number(3);
+num_months number(3);
+begin
+
+SELECT contract_startdate, contract_enddate, contract_payment_type
+INTO v_start_date, v_end_date, v_payment_type
+FROM contracts
+WHERE contract_id = v_contract_id;
+num_months := months_between(v_end_date, v_start_date);
+IF LOWER(v_payment_type) = LOWER('ANNUAL') THEN
+     v_payment_no := num_months/12;
+ELSIF LOWER(v_payment_type) = LOWER('HALF_ANNUAL') THEN
+     v_payment_no := num_months/6;
+ELSIF LOWER(v_payment_type) = LOWER('QUARTER') THEN
+     v_payment_no := num_months/3;
+ELSIF LOWER(v_payment_type) = LOWER('MONTHLY') THEN
+    v_payment_no := num_months;
+ELSE raise_application_error( -20001, 'Enter the payment type correctly');
+END IF;         
+
+UPDATE contracts SET PAYMENT_INSTALLMENTS_NO = v_payment_no
+WHERE contract_id = v_contract_id ;
+END;
+--Second procedure logic
+PROCEDURE insert_install_data(v_contract_id number)
+IS
+v_start_date date;
+v_end_date date;
+v_payment_type varchar(10);
+v_payment_no number(3);
+-- number of months of total payment period
+num_months number(3);
+-- to count the number of installments inside the for loop
+v_count number(2) := 0;
+v_fees number(10,2);
+v_amt number(10,2);
+v_contract_deposit_fees number(10,2);
+-- to calculate the installment date for each installment
+v_inst_date date;
+v_min number(1) := 1;
+v_max number(4);
+BEGIN
+SELECT contract_startdate, contract_enddate, contract_payment_type, contract_total_fees, contract_deposit_fees
+INTO v_start_date, v_end_date, v_payment_type, v_fees, v_contract_deposit_fees
+FROM contracts
+WHERE contract_id = v_contract_id;
+-- calculating the total number of months between the first payment and last payment date
+num_months := months_between(v_end_date, v_start_date);
+
+-- calculating the number of installments for each case of the payment type
+IF LOWER(v_payment_type) = LOWER('ANNUAL') THEN
+     v_payment_no := num_months/12;
+ELSIF LOWER(v_payment_type) = LOWER('HALF_ANNUAL') THEN
+     v_payment_no := num_months/6;
+ELSIF LOWER(v_payment_type) = LOWER('QUARTER') THEN
+     v_payment_no := num_months/3;
+ELSIF LOWER(v_payment_type) = LOWER('MONTHLY') THEN
+    v_payment_no := num_months;
+ELSE raise_application_error( -20001, 'Enter the payment type correctly');
+END IF;
+--initiating the first installment date
+v_inst_date := v_start_date;
+-- Max value inside the loop
+v_max := v_payment_no;
+-- calculating the amount for each installment
+v_amt := (v_fees - nvl(v_contract_deposit_fees,0)) /v_payment_no ;
+
+--looping to calculate and insert the payment date and all values
+FOR i in v_min..v_max LOOP 
+IF LOWER(v_payment_type) = LOWER('ANNUAL') THEN
+     INSERT INTO INSTALLMENTS_PAID (CONTRACT_ID, INSTALLMET_DATE, INSTALLEMENT_AMT, PAID)
+     VALUES(v_contract_id,v_inst_date, v_amt, 0 );
+     v_inst_date := add_months(v_inst_date, 12);
+
+    
+ELSIF LOWER(v_payment_type) = LOWER('HALF_ANNUAL') THEN
+         INSERT INTO INSTALLMENTS_PAID (CONTRACT_ID, INSTALLMET_DATE, INSTALLEMENT_AMT, PAID)
+     VALUES(v_contract_id,v_inst_date, v_amt, 0 );
+     v_inst_date := add_months(v_inst_date, 6);
+     
+ELSIF LOWER(v_payment_type) = LOWER('QUARTER') THEN
+         INSERT INTO INSTALLMENTS_PAID (CONTRACT_ID, INSTALLMET_DATE, INSTALLEMENT_AMT, PAID)
+     VALUES(v_contract_id,v_inst_date, v_amt, 0 );
+     v_inst_date := add_months(v_inst_date, 3);
+ELSE 
+     INSERT INTO INSTALLMENTS_PAID (CONTRACT_ID, INSTALLMET_DATE, INSTALLEMENT_AMT, PAID)
+     VALUES(v_contract_id,v_inst_date, v_amt, 0 );
+    v_inst_date := add_months(v_inst_date, 1);    
+END IF;
+END LOOP;
+END;
+END;
