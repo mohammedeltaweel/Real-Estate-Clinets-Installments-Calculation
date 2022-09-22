@@ -1,0 +1,51 @@
+-- This trigger inserts the number of installments in the contracts
+-- table, then inserts the payments data in installments_paid table
+-- if the contract record is new, the trigger updates the contracts
+-- table with payment_installment_no then inserts the payments data
+-- If the payment date whether it is start or finsih updated, the 
+-- trigger updates the payment_installment_no then deletes the old
+-- contract data in installments_paid table, and inserts new rows
+-- with the new calculations
+
+CREATE OR REPLACE TRIGGER contract_insert
+FOR INSERT OR UPDATE ON contracts
+COMPOUND  TRIGGER
+-- Declarative Section (optional)
+   -- Variables declared here have firing-statement duration.
+     v_contract_id number(5);
+     --Executed before DML statement
+     BEFORE STATEMENT IS
+     BEGIN
+       NULL;
+     END BEFORE STATEMENT;
+   
+     --Executed before each row change- :NEW, :OLD are available
+     BEFORE EACH ROW IS
+     BEGIN
+       NULL;
+     END BEFORE EACH ROW;
+   
+     --Executed aftereach row change- :NEW, :OLD are available
+     AFTER EACH ROW IS
+     BEGIN
+     v_contract_id := :new.contract_id;
+
+     END AFTER EACH ROW;
+   
+     --Executed after DML statement
+     AFTER STATEMENT IS
+      BEGIN
+     IF  UPDATING('CONTRACT_STARTDATE') OR UPDATING('CONTRACT_ENDDATE') THEN
+     installment_pkg.update_insall_no(v_contract_id);
+    DELETE FROM installments_paid WHERE CONTRACT_ID = v_contract_id;
+    installment_pkg.insert_install_data(v_contract_id);
+    
+
+    ELSIF INSERTING THEN
+    installment_pkg.update_insall_no(v_contract_id);
+
+    installment_pkg.insert_install_data(v_contract_id);
+    END IF;
+     END AFTER STATEMENT;
+
+END contract_insert;
