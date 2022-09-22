@@ -1,0 +1,18 @@
+-- Creating sequence for installment_id column so that it will be incemented automatically
+CREATE SEQUENCE HR.installments_paid_sq
+  START WITH 1
+  INCREMENT BY 1
+  MAXVALUE 999999999999999999999999999
+  MINVALUE 1
+  NOCYCLE
+  CACHE 20
+  NOORDER;
+-- Creating trigger to incement the sequence each time there is an insert done on installments table
+CREATE OR REPLACE TRIGGER install_paid_trig
+BEFORE INSERT
+ON HR.installments_paid REFERENCING NEW AS New OLD AS Old
+FOR EACH ROW
+BEGIN
+-- Incrementing the installment_id column by 1
+  :new.INSTALLMENT_ID := HR.installments_paid_sq.nextval;
+END install_paid_trig;
